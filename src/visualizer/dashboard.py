@@ -10,22 +10,30 @@ comprehensive analysis.
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-
-# Add src to path for imports
-
-
-from src.visualizer.data_connector import DataConnector
+from src.visualizer.cached_data_connector import CachedDataConnector as DataConnector
 from src.visualizer.chart_factory import ChartFactory
-from streamlit_folium import st_folium
+from streamlit_folium import st_folium  # type: ignore
 
 
 class CleanEnergyDashboard:
     """Main dashboard class for federal clean energy funding visualization."""
 
     def __init__(self):
-        self.data_connector = DataConnector()
+        # Store data connector in session state to persist across reruns
+        if "data_connector" not in st.session_state:
+            st.session_state.data_connector = DataConnector()
+
+        self.data_connector = st.session_state.data_connector
         self.chart_factory = ChartFactory()
         self.setup_page_config()
+
+        # Auto-load data on initialization if not already loaded
+        if not self._has_data_loaded():
+            # Use the current time period from session state if available
+            initial_period = st.session_state.get(
+                "current_time_period", "ira_chips_period"
+            )
+            self._auto_load_data(initial_period)
 
     def setup_page_config(self):
         """Configure Streamlit page settings."""
@@ -35,6 +43,26 @@ class CleanEnergyDashboard:
             layout="wide",
             initial_sidebar_state="expanded",
         )
+
+    def _has_data_loaded(self) -> bool:
+        """Check if data is already loaded."""
+        data_info = self.data_connector.get_data_info()
+        return data_info.get("status") in ["data_loaded", "cached_data_loaded"]
+
+    def _auto_load_data(self, time_period: str = "ira_chips_period"):
+        """Automatically load default data on startup."""
+        try:
+            success = self.data_connector.load_data(
+                time_period=time_period,
+                max_pages=5,
+                force_refresh=False,
+            )
+            if success:
+                print(f"✅ Auto-loaded data successfully for period: {time_period}")
+            else:
+                print(f"⚠️ Failed to auto-load data for period: {time_period}")
+        except Exception as e:
+            print(f"❌ Error auto-loading data: {e}")
 
     def run(self):
         """Main dashboard execution."""
@@ -70,8 +98,10 @@ class CleanEnergyDashboard:
         st.sidebar.subheader("Time Period")
         time_options = {
             "IRA/CHIPS Era (2022-2024)": "ira_chips_period",
-            "Pre-IRA (2020-2022)": "pre_ira_period",
-            "IIJA Period (2021-2024)": "iija_period",
+            "Post-ARRA Pre-IRA (2010-2022)": "post_arra_pre_ira",
+            "ARRA Period (2009-2010)": "arra_period",
+            "Pre-ARRA (2008 and earlier)": "pre_arra",
+            "Full Period (All Years)": "full_period",
             "Custom Range": "custom",
         }
 
@@ -83,29 +113,44 @@ class CleanEnergyDashboard:
             start_date = st.sidebar.date_input("Start Date", datetime(2020, 1, 1))
             end_date = st.sidebar.date_input("End Date", datetime.now())
 
+        # Auto-reload data when time period changes
+        current_time_period = (
+            time_options[selected_period]
+            if selected_period != "Custom Range"
+            else "custom"
+        )
+
+        # Simple time period management - just load data when period changes
+        if "current_time_period" not in st.session_state:
+            st.session_state.current_time_period = current_time_period
+        elif st.session_state.current_time_period != current_time_period:
+            st.session_state.current_time_period = current_time_period
+            # Load data for the new time period
+            self.data_connector.load_data(
+                time_period=current_time_period,
+                max_pages=5,
+                force_refresh=False,
+            )
+
         # Data loading controls
         st.sidebar.subheader("Data Management")
 
-        max_pages = st.sidebar.slider("Max Pages to Load", 1, 10, 5)
-
-        if st.sidebar.button("🔄 Load/Refresh Data"):
-            with st.spinner("Loading data..."):
-                success = self.data_connector.load_data(
-                    time_period=time_options[selected_period],
-                    max_pages=max_pages,
-                    force_refresh=True,
-                )
-                if success:
-                    st.sidebar.success("Data loaded successfully!")
-                    st.experimental_rerun()
-                else:
-                    st.sidebar.error("Failed to load data")
-
         # Data info
         data_info = self.data_connector.get_data_info()
-        if data_info.get("status") == "data_loaded":
-            st.sidebar.info(f"📊 {data_info['total_records']} records loaded")
-            st.sidebar.info(f"💾 {data_info['memory_usage']}")
+        if data_info.get("status") in ["data_loaded", "cached_data_loaded"]:
+            st.sidebar.success(
+                f"✅ Data loaded: {data_info['total_records']:,} records"
+            )
+            st.sidebar.info(f"💾 Memory: {data_info['memory_usage']}")
+            st.sidebar.info(
+                f"📅 Current period: {data_info.get('current_time_period', 'Unknown')}"
+            )
+            if data_info.get("data_source") == "consolidated_cache":
+                st.sidebar.info("🚀 Using cached data (fast mode)")
+        elif data_info.get("status") == "no_data_loaded":
+            st.sidebar.warning("⚠️ Loading data automatically...")
+        elif data_info.get("status") == "empty_dataset":
+            st.sidebar.error("❌ Dataset is empty")
 
         # Export options
         st.sidebar.subheader("Export")
@@ -118,10 +163,10 @@ class CleanEnergyDashboard:
 
     def render_main_content(self):
         """Render main dashboard content with multiple tabs."""
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        tab1, tab3, tab4, tab5 = st.tabs(
             [
                 "🗺️ Geographic Overview",
-                "📈 Trends & Timeline",
+                # "📈 Trends & Timeline",
                 "🏢 Recipients & Awards",
                 "🔬 Technology Analysis",
                 "📊 Comparative Analysis",
@@ -131,8 +176,8 @@ class CleanEnergyDashboard:
         with tab1:
             self.render_geographic_view()
 
-        with tab2:
-            self.render_trends_view()
+        # with tab2:
+        #     self.render_trends_view()
 
         with tab3:
             self.render_recipients_view()
@@ -159,10 +204,10 @@ class CleanEnergyDashboard:
         with col1:
             st.subheader("Interactive Map")
 
-            if FOLIUM_AVAILABLE and "state_summary" in geo_data:
+            if "state_summary" in geo_data:
                 # Create map using chart factory
                 map_obj = self.chart_factory.create_geographic_map(
-                    geo_data["state_summary"]
+                    geo_data["state_summary"]  # type: ignore
                 )
                 map_data = st_folium(map_obj, width=700, height=500)
             else:

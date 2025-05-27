@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Any
 
 
 from src.data_processor.core_processor import DataProcessor
+from src.visualizer.cached_data_loader import CachedDataLoader
 
 
 class DataConnector:
@@ -23,8 +24,16 @@ class DataConnector:
     data processing implementation.
     """
 
-    def __init__(self):
-        self.data_processor = DataProcessor()
+    def __init__(self, use_cached_data: bool = True):
+        self.use_cached_data = use_cached_data
+
+        if use_cached_data:
+            self.cached_loader = CachedDataLoader()
+            self.data_processor = None
+        else:
+            self.data_processor = DataProcessor()
+            self.cached_loader = None
+
         self._current_data = None
         self._current_analysis = None
 
@@ -46,12 +55,32 @@ class DataConnector:
             True if data loaded successfully, False otherwise
         """
         try:
-            self._current_data = self.data_processor.collect_clean_energy_data(
-                time_period=time_period,
-                max_pages=max_pages,
-                use_cache=not force_refresh,
-            )
-            return not self._current_data.empty
+            if self.use_cached_data and self.cached_loader:
+                # Use cached data - much faster and more reliable
+                self._current_data = self.cached_loader.get_awards_data(sample=False)
+
+                # Filter by time period if specified
+                if (
+                    time_period != "full_period"
+                    and "time_period_category" in self._current_data.columns
+                ):
+                    self._current_data = self._current_data[
+                        self._current_data["time_period_category"] == time_period
+                    ]
+
+                return not self._current_data.empty
+            else:
+                # Use live API data
+                if self.data_processor:
+                    self._current_data = self.data_processor.collect_clean_energy_data(
+                        time_period=time_period,
+                        max_pages=max_pages,
+                        use_cache=not force_refresh,
+                    )
+                    return not self._current_data.empty
+                else:
+                    print("Error: No data processor available")
+                    return False
         except Exception as e:
             print(f"Error loading data: {e}")
             return False

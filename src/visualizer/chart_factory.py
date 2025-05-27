@@ -12,7 +12,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Any
-import folium
+import folium  # type: ignore
 
 
 class ChartFactory:
@@ -30,23 +30,24 @@ class ChartFactory:
             "secondary": "#228B22",  # Forest Green
             "accent": "#32CD32",  # Lime Green
             "neutral": "#708090",  # Slate Gray
-            "background": "#F8F9FA",  # Light Gray
-            "text": "#2F4F4F",  # Dark Slate Gray
+            "background": "#FFFFFF",  # White
+            "text": "#1F2937",  # Dark Gray (much darker for readability)
         }
 
         self.tech_colors = {
-            "Solar": "#FFD700",  # Gold
-            "Wind": "#87CEEB",  # Sky Blue
-            "Battery Storage": "#FF6347",  # Tomato
-            "Grid Modernization": "#9370DB",  # Medium Purple
-            "Electric Vehicles": "#20B2AA",  # Light Sea Green
-            "Energy Efficiency": "#FFA500",  # Orange
-            "Carbon Capture": "#8B4513",  # Saddle Brown
-            "Geothermal": "#DC143C",  # Crimson
-            "Hydroelectric": "#4682B4",  # Steel Blue
-            "Biomass": "#228B22",  # Forest Green
-            "Hydrogen": "#FF1493",  # Deep Pink
-            "Other": "#808080",  # Gray
+            "Solar": "#F59E0B",  # Amber
+            "Wind": "#3B82F6",  # Blue
+            "Battery Storage": "#EF4444",  # Red
+            "Grid Modernization": "#8B5CF6",  # Violet
+            "Electric Vehicles": "#10B981",  # Emerald
+            "Energy Efficiency": "#F97316",  # Orange
+            "Carbon Capture": "#92400E",  # Brown
+            "Geothermal": "#DC2626",  # Red
+            "Hydroelectric": "#1D4ED8",  # Blue
+            "Biomass": "#059669",  # Green
+            "Hydrogen": "#EC4899",  # Pink
+            "Other Clean Energy": "#6B7280",  # Gray
+            "Other": "#6B7280",  # Gray
         }
 
     def create_geographic_map(
@@ -72,32 +73,107 @@ class ChartFactory:
 
         # State coordinates (simplified - would use proper geocoding in production)
         state_coords = {
+            "AL": [32.3617, -86.2792],
+            "AK": [64.0685, -152.2782],
+            "AZ": [34.2744, -111.2847],
+            "AR": [34.7519, -92.1313],
             "CA": [36.7783, -119.4179],
-            "TX": [31.9686, -99.9018],
-            "NY": [40.7128, -74.0060],
+            "CO": [39.5501, -105.7821],
+            "CT": [41.6219, -72.7273],
+            "DE": [38.9108, -75.5277],
             "FL": [27.7663, -82.6404],
-            "WA": [47.7511, -120.7401],
-            "IL": [40.6331, -89.3985],
-            "PA": [41.2033, -77.1945],
-            "OH": [40.4173, -82.9071],
-            "NC": [35.7596, -79.0193],
             "GA": [33.7490, -84.3880],
+            "HI": [19.8968, -155.5828],
+            "ID": [44.0682, -114.7420],
+            "IL": [40.6331, -89.3985],
+            "IN": [40.2732, -86.1349],
+            "IA": [42.0046, -93.2140],
+            "KS": [38.4937, -98.3804],
+            "KY": [37.8393, -84.2700],
+            "LA": [30.9843, -91.9623],
+            "ME": [45.3695, -69.2169],
+            "MD": [39.0458, -76.6413],
+            "MA": [42.2373, -71.5314],
+            "MI": [44.3467, -85.4102],
+            "MN": [46.3954, -94.6859],
+            "MS": [32.3547, -89.3985],
+            "MO": [38.3566, -92.4580],
+            "MT": [47.0527, -109.6333],
+            "NE": [41.4925, -99.9018],
+            "NV": [38.4199, -117.1219],
+            "NH": [43.4525, -71.5639],
+            "NJ": [40.3140, -74.5089],
+            "NM": [34.8405, -106.2485],
+            "NY": [40.7128, -74.0060],
+            "NC": [35.7596, -79.0193],
+            "ND": [47.5515, -101.0020],
+            "OH": [40.4173, -82.9071],
+            "OK": [35.5889, -97.5348],
+            "OR": [44.9778, -120.7374],
+            "PA": [41.2033, -77.1945],
+            "RI": [41.6762, -71.5562],
+            "SC": [33.8191, -80.9066],
+            "SD": [44.2853, -100.2263],
+            "TN": [35.7449, -86.7489],
+            "TX": [31.9686, -99.9018],
+            "UT": [40.1135, -111.8535],
+            "VT": [44.0407, -72.7093],
+            "VA": [37.7693, -78.2057],
+            "WA": [47.7511, -120.7401],
+            "WV": [38.4680, -80.9696],
+            "WI": [44.2619, -89.6165],
+            "WY": [42.7475, -107.2085],
+            "DC": [38.8974, -77.0365],
         }
+
+        # Calculate value range for proper scaling
+        values = [state.get(value_column, 0) for state in state_data]
+        if values:
+            min_value = min(values)
+            max_value = max(values)
+            value_range = max_value - min_value if max_value > min_value else 1
+        else:
+            min_value = max_value = value_range = 1
 
         # Add markers for each state
         for state in state_data:
-            state_code = state.get("state_code", "")
+            # Handle different state column names
+            state_code = state.get("state_code") or state.get(
+                "performance_state_code", ""
+            )
             if state_code in state_coords:
                 coords = state_coords[state_code]
                 value = state.get(value_column, 0)
 
-                # Scale marker size based on value
-                radius = max(5, min(50, value / 1000000))  # Scale to reasonable size
+                # Scale marker size based on value with proper normalization
+                if value_range > 0:
+                    # Normalize value to 0-1 range, then scale to 8-40 pixel radius
+                    normalized_value = (value - min_value) / value_range
+                    radius = 8 + (normalized_value * 32)  # Range: 8-40 pixels
+                else:
+                    radius = 15  # Default size if all values are the same
+
+                # Ensure minimum visibility
+                radius = max(8, radius)
+
+                # Create detailed popup with multiple metrics
+                popup_text = f"""
+                <b>{state_code}</b><br>
+                {value_column.replace('_', ' ').title()}: ${value:,.0f}<br>
+                """
+
+                # Add additional metrics if available
+                if "award_count" in state:
+                    popup_text += f"Awards: {state['award_count']:,}<br>"
+                if "avg_award_size" in state:
+                    popup_text += f"Avg Award: ${state['avg_award_size']:,.0f}<br>"
+                if "unique_recipients" in state:
+                    popup_text += f"Recipients: {state['unique_recipients']:,}"
 
                 folium.CircleMarker(
                     location=coords,
                     radius=radius,
-                    popup=f"{state_code}: ${value:,.0f}",
+                    popup=folium.Popup(popup_text, max_width=200),
                     color=self.colors["primary"],
                     fillColor=self.colors["accent"],
                     fillOpacity=0.7,
@@ -118,14 +194,24 @@ class ChartFactory:
 
         df = pd.DataFrame(state_data).head(top_n)
 
+        # Handle different state column names
+        state_column = None
+        if "state_code" in df.columns:
+            state_column = "state_code"
+        elif "performance_state_code" in df.columns:
+            state_column = "performance_state_code"
+        else:
+            # If no state column found, return empty figure
+            return go.Figure()
+
         fig = px.bar(
             df,
             x=value_column,
-            y="state_code",
+            y=state_column,
             orientation="h",
             title=f'Top {top_n} States by {value_column.replace("_", " ").title()}',
             color=value_column,
-            color_continuous_scale="Viridis",
+            color_continuous_scale="Blues",
         )
 
         fig.update_layout(
@@ -381,7 +467,6 @@ class ChartFactory:
                 {
                     "title": "Total Funding",
                     "value": f"${metrics['total_funding']:,.0f}",
-                    "delta": "+15%",  # Would calculate from actual data
                     "color": "primary",
                 }
             )
@@ -391,7 +476,6 @@ class ChartFactory:
                 {
                     "title": "Total Awards",
                     "value": f"{metrics['total_awards']:,}",
-                    "delta": "+8%",
                     "color": "secondary",
                 }
             )
@@ -401,7 +485,6 @@ class ChartFactory:
                 {
                     "title": "States Covered",
                     "value": str(metrics["unique_states"]),
-                    "delta": "→",
                     "color": "accent",
                 }
             )
@@ -411,7 +494,6 @@ class ChartFactory:
                 {
                     "title": "Top Technology",
                     "value": metrics["top_technology"],
-                    "delta": "+22%",
                     "color": "neutral",
                 }
             )
@@ -421,11 +503,36 @@ class ChartFactory:
     def apply_theme(self, fig: go.Figure) -> go.Figure:
         """Apply consistent theme to a figure."""
         fig.update_layout(
-            plot_bgcolor=self.colors["background"],
+            plot_bgcolor="white",
             paper_bgcolor="white",
-            font=dict(color=self.colors["text"], size=12),
-            title_font=dict(size=16, color=self.colors["text"]),
-            margin=dict(l=50, r=50, t=50, b=50),
+            font=dict(color="#1F2937", size=12, family="Arial, sans-serif"),
+            title_font=dict(size=18, color="#111827", family="Arial, sans-serif"),
+            margin=dict(l=60, r=60, t=60, b=60),
+            # Ensure axis labels are dark and readable
+            xaxis=dict(
+                title_font=dict(color="#111827", size=14),
+                tickfont=dict(color="#374151", size=11),
+                gridcolor="#E5E7EB",
+                linecolor="#D1D5DB",
+            ),
+            yaxis=dict(
+                title_font=dict(color="#111827", size=14),
+                tickfont=dict(color="#374151", size=11),
+                gridcolor="#E5E7EB",
+                linecolor="#D1D5DB",
+            ),
+            # Fix legend text color
+            legend=dict(
+                font=dict(color="#1F2937", size=11),
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor="#D1D5DB",
+                borderwidth=1,
+            ),
+            # Fix colorbar text color
+            coloraxis_colorbar=dict(
+                title_font=dict(color="#111827", size=12),
+                tickfont=dict(color="#374151", size=10),
+            ),
         )
 
         return fig

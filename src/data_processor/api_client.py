@@ -113,19 +113,23 @@ class USASpendingAPIClient:
             return {"results": [], "page_metadata": {}}
 
     def get_geographic_spending(
-        self, filters: Dict[str, Any], scope: str = "state"
+        self,
+        filters: Dict[str, Any],
+        geo_layer: str = "state",
+        scope: str = "place_of_performance",
     ) -> Dict[str, Any]:
         """
         Get geographic spending data using spending_by_geography endpoint.
 
         Args:
-            filters: Dictionary of filters to apply
-            scope: Geographic scope (state, county, district)
+            filters: Dictionary of filters to apply (AdvancedFilterObject)
+            geo_layer: Geographic layer (state, county, district)
+            scope: Geographic scope (place_of_performance, recipient_location)
 
         Returns:
             Dictionary containing geographic spending data
         """
-        payload = {"filters": filters, "scope": scope}
+        payload = {"filters": filters, "geo_layer": geo_layer, "scope": scope}
 
         try:
             response = self.session.post(

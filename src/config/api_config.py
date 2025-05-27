@@ -172,12 +172,13 @@ AWARD_TYPE_GROUPS = {
 DEFAULT_AWARD_TYPES = AWARD_TYPE_GROUPS["contracts"]
 
 # Date ranges for analysis
+# Note: USAspending API data starts from 2007-10-01
 DATE_RANGES = {
-    "pre_arra": {"start": "2007-01-01", "end": "2009-02-16"},
+    "pre_arra": {"start": "2007-10-01", "end": "2009-02-16"},
     "arra_period": {"start": "2009-02-17", "end": "2012-12-31"},
     "post_arra_pre_ira": {"start": "2013-01-01", "end": "2022-08-15"},
     "ira_chips_period": {"start": "2022-08-16", "end": "2024-12-31"},
-    "full_period": {"start": "2007-01-01", "end": "2024-12-31"},
+    "full_period": {"start": "2007-10-01", "end": "2024-12-31"},
 }
 
 # State codes for geographic analysis
